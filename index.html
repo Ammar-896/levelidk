@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Floor Devil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-outer:#a8700e;
+    --bg-room:#ffb462;
+    --stripe:#5ff0d4;
+    --hud-box:#6b1313;
+    --hud-box-dark:#3d0a0a;
+    --door-fill:#cfcfcf;
+    --door-border:#8a5a16;
+    --cream:#f5e6c8;
+    --danger:#1d1d1d;
+    --accent:#e0a23c;
+    --accent-bright:#ffcf73;
+    --pixel-font:'Press Start 2P', monospace;
+    --body-font:'VT323', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg-outer);
+    overflow:hidden;
+    font-family: var(--body-font);
+    user-select:none;
+    image-rendering: pixelated;
+  }
+  #stage{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(ellipse at 50% 38%, #c98a1a 0%, var(--bg-outer) 62%, #6b4708 100%);
+  }
+  #bgPattern{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    opacity:0.5;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 26px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 26px);
+  }
+  #stripe{
+    position:fixed; top:0; left:0; right:0; height:6px;
+    background:var(--stripe); z-index:5;
+    background-image: repeating-linear-gradient(90deg, var(--stripe) 0 10px, #2fb89a 10px 12px);
+    background-size:200% 100%;
+    animation: stripeScroll 6s linear infinite;
+  }
+  @keyframes stripeScroll{ from{ background-position:0 0; } to{ background-position:-200px 0; } }
+  #canvasWrap{
+    position:relative;
+    box-shadow: 0 0 0 4px #3d2606, 0 0 0 8px #1f1300, 0 0 38px rgba(0,0,0,0.55), inset 0 0 70px rgba(0,0,0,0.5);
+  }
+  #canvasWrap canvas{
+    display:block; width:100%; height:100%;
+    background:var(--bg-outer);
+    image-rendering: pixelated;
+  }
+  #scanlines{
+    position:absolute; inset:0; pointer-events:none;
+    background-image: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.16) 3px, rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode:multiply;
+  }
+  #vignette{
+    position:absolute; inset:0; pointer-events:none;
+    box-shadow: inset 0 0 90px 18px rgba(0,0,0,0.55);
+  }
+  #flashOverlay{
+    position:absolute; inset:0; pointer-events:none;
+    background:#ff2b2b; opacity:0; mix-blend-mode:screen;
+  }
+  #flashOverlay.hit{ animation: hitFlash 260ms ease-out; }
+  @keyframes hitFlash{ 0%{ opacity:0.65; } 100%{ opacity:0; } }
+  .overlay{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(20,12,0,0.82);
+    z-index:50;
+    padding:20px;
+    animation: overlayFade 180ms ease-out;
+  }
+  @keyframes overlayFade{ from{ opacity:0; } to{ opacity:1; } }
+  .hidden{ display:none !important; }
+  .panel{
+    background:#7a4e0e;
+    background-image: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.08));
+    border:4px solid #1f1300;
+    border-radius:0;
+    padding:28px 30px;
+    max-width:520px;
+    width:100%;
+    color:var(--cream);
+    box-shadow: 6px 6px 0 #1f1300, 10px 10px 0 rgba(0,0,0,0.35);
+    max-height:88vh;
+    overflow-y:auto;
+    image-rendering: pixelated;
+    animation: panelPop 220ms cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes panelPop{
+    from{ opacity:0; transform:translateY(10px) scale(.96); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+  .panel.terms-panel{ max-width:680px; }
+  .panel h1{
+    margin:0 0 10px 0;
+    font-family: var(--pixel-font);
+    font-size:18px;
+    line-height:1.4;
+    letter-spacing:1px;
+    color:#fff3da;
+    text-shadow:3px 3px 0 #1f1300;
+  }
+  #menuScreen h1{
+    animation: titleBob 2.6s ease-in-out infinite;
+    display:inline-block;
+  }
+  @keyframes titleBob{
+    0%,100%{ transform:translateY(0); }
+    50%{ transform:translateY(-4px); }
+  }
+  .panel h2{
+    margin:0 0 16px 0;
+    font-family: var(--body-font);
+    font-size:18px;
+    font-weight:normal;
+    color:#ffd9a0;
+    opacity:0.9;
+  }
+  .panel p{ font-size:16px; line-height:1.55; margin:0 0 10px 0; }
+  .panel h3{
+    font-family: var(--body-font);
+    font-size:18px;
+    color:#ffd9a0;
+    border-bottom:2px solid rgba(255,217,160,0.35);
+    padding-bottom:4px;
+    margin:20px 0 8px 0;
+  }
+  .panel h3:first-child{ margin-top:0; }
+  .terms-box{
+    background:rgba(0,0,0,0.28);
+    border:3px solid #1f1300;
+    border-radius:0;
+    padding:12px 14px;
+    font-size:14.5px;
+    line-height:1.6;
+    max-height:160px;
+    overflow-y:auto;
+    margin:14px 0;
+    color:#f1e3c9;
+    font-family: var(--body-font);
+  }
+  .terms-full{
+    background:rgba(0,0,0,0.22);
+    border:3px solid #1f1300;
+    padding:14px 16px;
+    max-height:52vh;
+    overflow-y:auto;
+    margin:10px 0;
+    font-family: var(--body-font);
+  }
+  .terms-full p{ font-size:16px; }
+  .small-link-row{ text-align:center; margin:6px 0 4px 0; }
+  .small-link-row a{
+    color:#ffd9a0; text-decoration:underline; cursor:pointer;
+    font-size:13.5px; font-family: var(--body-font);
+  }
+  .consent-row{
+    display:flex; align-items:flex-start; gap:10px;
+    margin:14px 0 18px 0;
+    font-size:14.5px;
+    line-height:1.5;
+  }
+  .consent-row input{
+    width:22px; height:22px; flex:none; margin-top:2px; accent-color:#e0a23c;
+  }
+  .btn{
+    appearance:none; border:3px solid #1f1300; cursor:pointer;
+    font-family: var(--pixel-font); font-weight:normal; letter-spacing:0.5px;
+    border-radius:0;
+    padding:14px 16px;
+    font-size:12px;
+    width:100%;
+    background:var(--accent);
+    color:#3d2606;
+    box-shadow:0 6px 0 #1f1300;
+    transition:transform .05s ease, box-shadow .05s ease, background .12s ease;
+  }
+  .btn:hover{ background:var(--accent-bright); }
+  .btn:active{ transform:translateY(5px); box-shadow:0 1px 0 #1f1300; }
+  .btn:focus-visible{ outline:3px solid #fff3da; outline-offset:2px; }
+  .btn:disabled{
+    background:#8a7350; color:#5a4d3a; box-shadow:0 6px 0 #1f1300; cursor:not-allowed;
+  }
+  .btn.secondary{
+    background:#5a3a0a; color:#ffd9a0; box-shadow:0 6px 0 #1f1300; margin-top:10px;
+  }
+  .btn.secondary:hover{ background:#6e480f; }
+  .btn-row{ display:flex; gap:10px; }
+  .btn-row .btn{ width:auto; flex:1; }
+  #menuScreen .btn{ margin-bottom:10px; }
+  .small-note{ font-size:12.5px; opacity:0.8; margin-top:14px; font-family: var(--body-font); }
+
+  /* HUD */
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:20; }
+  .hud-top{
+    position:absolute; top:14px; left:14px; right:14px;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+  }
+  .hud-left{ display:flex; gap:8px; pointer-events:auto; }
+  .icon-btn{
+    width:46px; height:46px;
+    background:var(--hud-box);
+    border:3px solid #1f1300;
+    border-radius:0;
+    box-shadow:0 4px 0 #1f1300;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:transform .05s ease, background .12s ease;
+  }
+  .icon-btn:hover{ background:#7d1818; }
+  .icon-btn:active{ transform:translateY(2px); box-shadow:0 2px 0 #1f1300; }
+  .icon-btn svg{ width:22px; height:22px; shape-rendering:crispEdges; }
+  .hud-center{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:rgba(0,0,0,0.3);
+    padding:6px 12px; border-radius:0;
+    border:2px solid #1f1300;
+    min-width:150px;
+  }
+  .hud-progress-track{
+    width:100%; height:6px; background:rgba(255,255,255,0.12);
+    border:1px solid #1f1300; position:relative; overflow:hidden;
+  }
+  .hud-progress-fill{
+    height:100%; background:var(--accent); width:0%;
+    transition:width .35s ease;
+  }
+  .hud-level-label{
+    font-size:11px; font-family:var(--body-font); color:#ffe6bd; letter-spacing:0.5px;
+  }
+  .hud-right{
+    background:rgba(0,0,0,0.3);
+    border:2px solid #1f1300;
+    color:var(--cream); font-size:14px; font-family: var(--body-font);
+    padding:8px 12px; border-radius:0;
+    pointer-events:auto;
+    transition:transform .12s ease, color .12s ease;
+  }
+  .hud-right.bump{ animation:deathBump 320ms ease-out; }
+  @keyframes deathBump{
+    0%{ transform:scale(1); color:#ff8a8a; }
+    30%{ transform:scale(1.18); color:#ff5252; }
+    100%{ transform:scale(1); color:var(--cream); }
+  }
+  .hud-name{
+    position:absolute; top:70px; left:50%; transform:translateX(-50%);
+    color:#fff3da; font-size:13px; font-family: var(--pixel-font);
+    text-shadow:2px 2px 0 #1f1300;
+    background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:0;
+    border:2px solid #1f1300;
+    white-space:nowrap;
+  }
+
+  /* touch controls */
+  #touchControls{
+    position:fixed; bottom:18px; left:0; right:0;
+    display:none; justify-content:space-between; align-items:flex-end;
+    padding:0 18px; pointer-events:none; z-index:21;
+  }
+  .tbtn{
+    pointer-events:auto;
+    width:64px; height:64px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(0,0,0,0.45) 70%);
+    border:3px solid rgba(255,255,255,0.45);
+    box-shadow:0 4px 0 rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.3);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:26px; font-weight:bold; font-family: var(--pixel-font);
+    transition:transform .06s ease, box-shadow .06s ease, background .1s ease;
+  }
+  .tbtn:active{
+    background:radial-gradient(circle at 35% 30%, rgba(255,207,115,0.55), rgba(0,0,0,0.55) 70%);
+    transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,0.5);
+  }
+  #touchMove{ display:flex; gap:16px; }
+  #btnJump{ width:74px; height:74px; }
+  @media (pointer:coarse){
+    #touchControls{ display:flex; }
+  }
+
+  #toast{
+    position:fixed; top:120px; left:50%; transform:translateX(-50%) translateY(-8px);
+    background:rgba(15,9,0,0.88); color:#fff3da; padding:10px 20px;
+    border:2px solid var(--accent);
+    border-radius:0; font-size:15px; font-family: var(--body-font); z-index:60; pointer-events:none;
+    opacity:0; transition:opacity .25s ease, transform .25s ease;
+    letter-spacing:0.5px;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* scrollbars to match the theme a little */
+  .terms-box::-webkit-scrollbar, .terms-full::-webkit-scrollbar, .panel::-webkit-scrollbar{ width:12px; }
+  .terms-box::-webkit-scrollbar-thumb, .terms-full::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb{
+    background:#e0a23c; border:2px solid #1f1300;
+  }
+  .terms-box::-webkit-scrollbar-track, .terms-full::-webkit-scrollbar-track, .panel::-webkit-scrollbar-track{
+    background:rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body>
+<div id="bgPattern"></div>
+<div id="stripe"></div>
+<div id="stage">
+  <div id="canvasWrap">
+    <canvas id="game" width="1280" height="720"></canvas>
+    <div id="scanlines"></div>
+    <div id="vignette"></div>
+    <div id="flashOverlay"></div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="hud-left">
+      <div class="icon-btn" id="pauseBtn" title="Pause">
+        <svg viewBox="0 0 24 24" fill="none" shape-rendering="crispEdges"><rect x="5" y="4" width="5" height="16" fill="#f0d9b0"/><rect x="14" y="4" width="5" height="16" fill="#f0d9b0"/></svg>
+      </div>
+      <div class="icon-btn" id="restartBtn" title="Restart level">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#f0d9b0" stroke-width="2.4" shape-rendering="crispEdges"><path d="M4 12a8 8 0 1 1 2.5 5.8" stroke-linecap="square"/><path d="M4 16 V12 H8" stroke-linecap="square" stroke-linejoin="miter"/></svg>
+      </div>
+    </div>
+    <div class="hud-center" id="lvlDots">
+      <div class="hud-level-label" id="levelLabel">Level 1</div>
+      <div class="hud-progress-track"><div class="hud-progress-fill" id="hudProgressFill"></div></div>
+    </div>
+    <div class="hud-right" id="deathCounter">Deaths: 0</div>
+  </div>
+  <div class="hud-name" id="levelName"></div>
+</div>
+
+<!-- touch controls -->
+<div id="touchControls">
+  <div id="touchMove">
+    <div class="tbtn" id="btnLeft">&#8592;</div>
+    <div class="tbtn" id="btnRight">&#8594;</div>
+  </div>
+  <div class="tbtn" id="btnJump">&#8593;</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Consent screen -->
+<div class="overlay" id="consentScreen">
+  <div class="panel">
+    <h1>Before You Play</h1>
+    <h2>Floor Devil — Terms &amp; Data Notice</h2>
+    <p>This is a short notice about what happens when you press play.</p>
+    <div class="terms-box">
+      <strong>What we collect:</strong> when you accept and start the game, this page requests your public IP address (via a third-party lookup service) along with the time and your browser's user-agent string. That information is sent to a Discord server controlled by the developer of this game, for security and abuse-monitoring purposes.<br><br>
+      <strong>What we don't collect:</strong> no names, emails, passwords, precise location, or anything beyond what's described above. We don't use cookies or local storage to track you across sessions.<br><br>
+      <strong>Why:</strong> this helps the developer spot abuse of the game/site and keep it running.<br><br>
+      <strong>Your choice:</strong> if you don't want this, simply don't accept below — you can close this tab and the game won't run, and nothing will be collected.
+    </div>
+    <div class="small-link-row"><a id="readFullTermsLink">Read the full Terms &amp; Conditions →</a></div>
+    <label class="consent-row">
+      <input type="checkbox" id="consentCheckbox">
+      <span>I have read the notice above and agree to my IP address, timestamp, and browser info being collected and sent as described.</span>
+    </label>
+    <button class="btn" id="agreeBtn" disabled>I Agree &amp; Play</button>
+    <div class="small-note">If you don't agree, just close this tab — nothing is collected unless you press the button above.</div>
+  </div>
+</div>
+
+<!-- Main menu -->
+<div class="overlay hidden" id="menuScreen">
+  <div class="panel" style="text-align:center;">
+    <h1 style="font-size:26px;">FLOOR&nbsp;DEVIL</h1>
+    <h2>nothing here is what it looks like</h2>
+    <button class="btn" id="playBtn">Play</button>
+    <button class="btn secondary" id="howToBtn">How to Play</button>
+    <button class="btn secondary" id="menuTermsBtn">Terms &amp; Conditions</button>
+  </div>
+</div>
+
+<!-- How to play -->
+<div class="overlay hidden" id="howToScreen">
+  <div class="panel">
+    <h1>How to Play</h1>
+    <p><strong>Move:</strong> Arrow Keys / A,D &nbsp; <strong>Jump:</strong> Space / W / Up</p>
+    <p>Reach the door to finish each level. Floors that look solid sometimes aren't. Things that look dangerous sometimes aren't. Pressing a button rarely comes for free. Trust nothing, move with intent, and when you die — and you will — you respawn instantly. There's no penalty but your pride.</p>
+    <button class="btn" id="backToMenuBtn">Back</button>
+  </div>
+</div>
+
+<!-- Pause -->
+<div class="overlay hidden" id="pauseScreen">
+  <div class="panel" style="text-align:center;">
+    <h1>Paused</h1>
+    <button class="btn" id="resumeBtn">Resume</button>
+    <button class="btn secondary" id="restartFromPauseBtn">Restart Level</button>
+    <button class="btn secondary" id="menuFromPauseBtn">Main Menu</button>
+  </div>
+</div>
+
+<!-- Level complete (between hand-crafted levels milestone) -->
+<div class="overlay hidden" id="endlessScreen">
+  <div class="panel" style="text-align:center;">
+    <h1>You Survived The Set</h1>
+    <p>That was every hand-built level. From here on, Floor Devil keeps generating new ones — and they only get meaner.</p>
+    <button class="btn" id="continueEndlessBtn">Keep Going</button>
+  </div>
+</div>
+
+<!-- Full Terms & Conditions -->
+<div class="overlay hidden" id="termsScreen">
+  <div class="panel terms-panel">
+    <h1>Terms &amp; Conditions</h1>
+    <h2>Floor Devil — Full Legal Terms</h2>
+    <button class="btn secondary" id="termsBackBtnTop">&larr; Back</button>
+    <div class="terms-full">
+      <p><em>Last updated: [insert date]. This document is a thorough template written for clarity and is not a substitute for advice from a qualified lawyer — have it reviewed before relying on it for a public release.</em></p>
+
+      <h3>1. Acceptance of Terms</h3>
+      <p>By checking the consent box on the previous screen and clicking "I Agree &amp; Play," you agree to be bound by these Terms &amp; Conditions ("Terms"). If you do not agree with any part of these Terms, do not check that box and do not play Floor Devil (the "Game"). Closing this tab costs you nothing and nothing will be collected.</p>
+
+      <h3>2. Description of the Service</h3>
+      <p>Floor Devil is a free, browser-based obstacle and platforming game made available for entertainment purposes. It consists of a set of hand-built levels followed by levels generated automatically by the Game's own logic. No account, sign-up, or payment is required to play.</p>
+
+      <h3>3. Eligibility</h3>
+      <p>The Game is not directed at children and does not knowingly target users under the age of 13 (or the relevant age of digital consent in your region). By playing, you represent that you are old enough under the laws that apply to you to agree to this notice yourself, or that a parent or guardian has reviewed and agreed to it on your behalf.</p>
+
+      <h3>4. Intellectual Property</h3>
+      <p>All code, artwork, level design, and game mechanics that make up the Game are owned by its developer (or used under license) and are protected by applicable intellectual property laws. Playing the Game gives you a personal, non-exclusive, non-transferable, and revocable license to use it for your own entertainment. You may not copy, redistribute, modify, decompile, reverse-engineer, rehost, sublicense, or sell the Game or any derivative of it without the developer's prior written permission.</p>
+
+      <h3>5. Acceptable Use</h3>
+      <p>You agree not to use the Game to attack, flood, overload, or otherwise abuse the infrastructure it depends on — including any logging endpoint, webhook, or third-party API the Game calls — and not to attempt to scrape, automate, or gain unauthorized access to anything beyond what is openly served by this page.</p>
+
+      <h3>6. Privacy and Data Collection</h3>
+      <p>When you click "I Agree &amp; Play" on the consent screen, the Game looks up your current public IP address through a third-party IP-lookup service, and records the time of your visit along with your browser's user-agent string. That information is sent to a private Discord channel controlled by the developer, solely so the developer can watch for abuse and keep the Game running reliably.</p>
+      <p>The Game does not collect your name, email address, password, precise device location, payment information, or anything beyond the three items listed above. It does not use cookies, local storage, or any other tracking technology to follow you across visits or across other sites. If you do not check the consent box, none of this information is requested or sent, and the Game will not load.</p>
+
+      <h3>7. Third-Party Services</h3>
+      <p>The IP lookup described above is performed through a third-party API, and the resulting record is delivered through Discord's webhook infrastructure. Both of those providers process this data under their own respective privacy policies and terms of service, which the developer of this Game does not control and is not responsible for.</p>
+
+      <h3>8. No Warranties</h3>
+      <p>The Game is provided "as is" and "as available," without warranties of any kind, whether express or implied, including any implied warranty of merchantability, fitness for a particular purpose, or non-infringement. The developer does not warrant that the Game will be uninterrupted, error-free, or free of bugs (some of which, frankly, are the entire point).</p>
+
+      <h3>9. Limitation of Liability</h3>
+      <p>To the maximum extent permitted by law, the developer will not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of, or inability to use, the Game, even if advised of the possibility of such damages.</p>
+
+      <h3>10. Indemnification</h3>
+      <p>You agree to indemnify and hold the developer harmless from any claims, damages, or expenses arising out of your violation of these Terms or your misuse of the Game.</p>
+
+      <h3>11. Termination</h3>
+      <p>Access to the Game may be suspended or terminated at any time, for any reason, including suspected abuse, without prior notice.</p>
+
+      <h3>12. Changes to These Terms</h3>
+      <p>These Terms may be updated from time to time. Continued use of the Game after changes are posted constitutes acceptance of the revised Terms. You are encouraged to revisit this page periodically.</p>
+
+      <h3>13. Severability</h3>
+      <p>If any provision of these Terms is found unenforceable, the remaining provisions will continue in full force and effect.</p>
+
+      <h3>14. Entire Agreement</h3>
+      <p>Together with the short notice shown on the consent screen, these Terms constitute the entire agreement between you and the developer regarding use of the Game, and supersede any prior understanding on the subject.</p>
+
+      <h3>15. Governing Law</h3>
+      <p>These Terms are governed by the laws applicable in the developer's jurisdiction of operation, without regard to conflict-of-law principles. <em>[Replace this section with your actual local governing law before any public release.]</em></p>
+
+      <h3>16. Contact</h3>
+      <p>Questions about these Terms, or about the data collection described in Section 6, can be directed to the developer through the same channel where this Game was shared with you.</p>
+    </div>
+    <button class="btn secondary" id="termsBackBtnBottom">&larr; Back</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   CONFIG — edit this before you deploy
+   ========================================================= */
+// Paste your Discord webhook URL here. Leave empty to disable logging.
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1517828717681053856/7l6RnBjCv-LY8Ax-zRb-6DR-3cKpCjHmDM2mznOrwxNuMmgzZUsDFWemJPpgJVuGuCZb";
+
+/* =========================================================
+   CONSTANTS
+   ========================================================= */
+const VW = 1280, VH = 720;
+const ROOM_TOP = 160, GROUND_Y = 620;
+const GRAVITY = 0.65, MOVE_SPEED = 4.3, JUMP_V = -12.8, MAX_FALL = 16;
+const PLAYER_W = 22, PLAYER_H = 52;
+const COL = {
+  outer: "#a8700e",
+  room: "#ffb462",
+  roomEdge: "#e89a3f",
+  door: "#cfcfcf",
+  doorBorder: "#8a5a16",
+  spike: "#241313",
+  spikeEdge: "#5a1212",
+  saw: "#9aa0a6",
+  sawCenter: "#c4302b",
+  crusher: "#4a4a4a",
+  gate: "#5a3a0a",
+  button: "#e0a23c",
+  buttonPressed: "#9c6a1c",
+  movingPlat: "#ffd58a",
+  illusion: "#5a3a0a",
+  decoyDoor: "#b8b8b8",
+  player: "#161616",
+  outline: "#1a1208",
+  laserOff: "#5a2020",
+  laserOn: "#ff3b3b",
+  laserCap: "#2b2b2b",
+  pendulumChain: "#6b6b6b",
+  spikewallBody: "#55504a",
+  spikewallTeeth: "#241313"
+};
+
+/* =========================================================
+   CANVAS / SCALING
+   ========================================================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+function shadeColor(hex, amt){
+  let c = hex.replace('#','');
+  if(c.length===3) c = c.split('').map(ch=>ch+ch).join('');
+  const num = parseInt(c,16);
+  let r = (num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function makeTilePattern(c1, c2, size){
+  const t = document.createElement("canvas");
+  t.width = size; t.height = size;
+  const tctx = t.getContext("2d");
+  tctx.fillStyle = c1; tctx.fillRect(0,0,size,size);
+  tctx.fillStyle = c2;
+  tctx.fillRect(0,0,size/2,size/2);
+  tctx.fillRect(size/2,size/2,size/2,size/2);
+  return ctx.createPattern(t, "repeat");
+}
+let roomPattern = null, floorPattern = null;
+function initPatterns(){
+  roomPattern = makeTilePattern(COL.room, shadeColor(COL.room, -10), 16);
+  floorPattern = makeTilePattern(COL.room, shadeColor(COL.room, -18), 16);
+}
+initPatterns();
+
+function resize(){
+  const scale = Math.min(window.innerWidth / VW, window.innerHeight / VH);
+  const wrap = document.getElementById("canvasWrap");
+  wrap.style.width = (VW*scale) + "px";
+  wrap.style.height = (VH*scale) + "px";
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+const keys = {};
+window.addEventListener("keydown", (e)=>{
+  if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if(e.code === "Escape") togglePause();
+  if(e.code === "KeyR") restartLevel();
+});
+window.addEventListener("keyup", (e)=>{ keys[e.code] = false; });
+
+function bindTouch(el, code){
+  const on = (e)=>{ e.preventDefault(); keys[code]=true; };
+  const off = (e)=>{ e.preventDefault(); keys[code]=false; };
+  el.addEventListener("touchstart", on, {passive:false});
+  el.addEventListener("touchend", off, {passive:false});
+  el.addEventListener("touchcancel", off, {passive:false});
+  el.addEventListener("mousedown", on);
+  el.addEventListener("mouseup", off);
+}
+bindTouch(document.getElementById("btnLeft"), "ArrowLeft");
+bindTouch(document.getElementById("btnRight"), "ArrowRight");
+bindTouch(document.getElementById("btnJump"), "Space");
+
+/* =========================================================
+   LEVEL DATA (hand-crafted)
+   ========================================================= */
+function lvl(def){ return def; }
+
+const LEVELS = [
+lvl({ // 1
+  name: "First Steps",
+  width: 1100,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0, w:1100}],
+  platforms: [],
+  hazards: [
+    {type:"spike", x:880, y:GROUND_Y-30, w:34, h:30, camouflage:true}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1010, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 2
+  name: "Trust Issues",
+  width: 1500,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:260},{x:560,w:200},{x:1060,w:440}],
+  platforms: [
+    {id:"f1", type:"fake", x:308, y:GROUND_Y, w:114, h:20, delay:520, state:"idle", timer:0},
+    {id:"f2", type:"fake", x:798, y:GROUND_Y, w:120, h:20, delay:520, state:"idle", timer:0}
+  ],
+  hazards: [],
+  buttons: [],
+  decorations: [],
+  door: {x:1430, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 3
+  name: "Ceiling Says Hi",
+  width: 1300,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1300}],
+  platforms: [],
+  hazards: [
+    {type:"dropper", id:"d1", triggerX:520, triggerW:110, x:535, restY:ROOM_TOP, y:ROOM_TOP, w:90, h:90, targetY:GROUND_Y-90, fallSpeed:11, state:"idle"},
+    {type:"dropper", id:"d2", triggerX:1000, triggerW:90, x:1015, restY:ROOM_TOP, y:ROOM_TOP, w:80, h:80, targetY:GROUND_Y-80, fallSpeed:12, state:"idle"}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1220, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 4
+  name: "Push My Buttons",
+  width: 1400,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1400}],
+  platforms: [
+    {id:"gate1", type:"gate", x:760, y:ROOM_TOP, w:22, h:GROUND_Y-ROOM_TOP, solid:true}
+  ],
+  hazards: [
+    {type:"spike", id:"trap1", x:800, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8},
+    {type:"spike", id:"trap2", x:866, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8}
+  ],
+  buttons: [
+    {x:690, y:GROUND_Y-18, w:42, h:18, id:"btn1", pressed:false,
+      openGateIds:["gate1"], armDelay:900, armHazardIds:["trap1","trap2"]}
+  ],
+  decorations: [],
+  door: {x:1320, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 5
+  name: "Saw Point",
+  width: 1550,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1550}],
+  platforms: [],
+  hazards: [
+    {type:"saw", x:680, baseX:680, y:GROUND_Y-26, axis:"x", range:140, speed:0.0028, radius:24},
+    {type:"saw", x:1180, baseX:1180, y:GROUND_Y-26, axis:"x", range:120, speed:0.0042, radius:24}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1470, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 6
+  name: "Illusions",
+  width: 1250,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1250}],
+  platforms: [
+    {id:"illusion1", type:"illusion", x:680, y:ROOM_TOP, w:42, h:GROUND_Y-ROOM_TOP}
+  ],
+  hazards: [],
+  buttons: [],
+  decorations: [
+    {type:"decoyDoor", x:560, y:GROUND_Y-100, w:56, h:90}
+  ],
+  door: {x:1160, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 7
+  name: "Crusher Run",
+  width: 1650,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:540},{x:850,w:800}],
+  platforms: [
+    {id:"mp1", type:"moving", baseX:580, x:580, y:GROUND_Y-4, w:90, h:18, axis:"x", range:170, speed:0.0022}
+  ],
+  hazards: [
+    {type:"crusher", x:660, w:80, baseY:ROOM_TOP+10, y:ROOM_TOP+10, h:70, axis:"y", range:280, speed:0.0026}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1560, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 8
+  name: "The Gauntlet",
+  width: 1850,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1850}],
+  platforms: [
+    {id:"f8", type:"fake", x:380, y:GROUND_Y, w:110, h:20, delay:480, state:"idle", timer:0},
+    {id:"gate8", type:"gate", x:980, y:ROOM_TOP, w:22, h:GROUND_Y-ROOM_TOP, solid:true},
+    {id:"illusion8", type:"illusion", x:1500, y:ROOM_TOP, w:42, h:GROUND_Y-ROOM_TOP}
+  ],
+  hazards: [
+    {type:"spike", x:200, y:GROUND_Y-30, w:30, h:30, camouflage:true},
+    {type:"saw", x:650, baseX:650, y:GROUND_Y-26, axis:"x", range:130, speed:0.0034, radius:24},
+    {type:"spike", id:"g8t1", x:1020, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8},
+    {type:"spike", id:"g8t2", x:1086, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8}
+  ],
+  buttons: [
+    {x:900, y:GROUND_Y-18, w:42, h:18, id:"btn8", pressed:false,
+      openGateIds:["gate8"], armDelay:900, armHazardIds:["g8t1","g8t2"]}
+  ],
+  decorations: [
+    {type:"decoyDoor", x:1430, y:GROUND_Y-100, w:56, h:90}
+  ],
+  door: {x:1740, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 9
+  name: "Swing Low",
+  width: 1500,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1500}],
+  platforms: [],
+  hazards: [
+    {type:"pendulum", pivotX:500, pivotY:ROOM_TOP+20, length:220, amplitude:0.9, speed:0.0026, radius:22, phase:0, x:500, y:ROOM_TOP+20},
+    {type:"pendulum", pivotX:1000, pivotY:ROOM_TOP+20, length:240, amplitude:0.85, speed:0.0031, radius:22, phase:3.14, x:1000, y:ROOM_TOP+20}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1420, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 10
+  name: "Cycle of Trust",
+  width: 1450,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1450}],
+  platforms: [],
+  hazards: [
+    {type:"spike", id:"c1", x:420, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:700, offMs:900, phase:0},
+    {type:"spike", id:"c2", x:520, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:700, offMs:900, phase:400},
+    {type:"spike", id:"c3", x:860, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:650, offMs:950, phase:0},
+    {type:"spike", id:"c4", x:960, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:650, offMs:950, phase:500}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1370, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 11
+  name: "Beam Me Wrong",
+  width: 1500,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1500}],
+  platforms: [],
+  hazards: [
+    {type:"laser", x:560, y:ROOM_TOP, w:26, h:GROUND_Y-ROOM_TOP, onMs:650, offMs:950, phase:0},
+    {type:"laser", x:1080, y:ROOM_TOP, w:26, h:GROUND_Y-ROOM_TOP, onMs:600, offMs:1000, phase:500}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1420, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 12
+  name: "Sweep Wide",
+  width: 1650,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1650}],
+  platforms: [],
+  hazards: [
+    {type:"spikewall", baseX:750, x:750, y:GROUND_Y-90, w:70, h:90, axis:"x", range:260, speed:0.0024},
+    {type:"spikewall", baseX:1250, x:1250, y:GROUND_Y-90, w:60, h:80, axis:"x", range:200, speed:0.0032}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1560, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 13
+  name: "Double Cross",
+  width: 1550,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:300},{x:650,w:900}],
+  platforms: [
+    {id:"f13", type:"fake", x:330, y:GROUND_Y, w:290, h:20, delay:450, state:"idle", timer:0},
+    {id:"gate13", type:"gate", x:900, y:ROOM_TOP, w:22, h:GROUND_Y-ROOM_TOP, solid:true}
+  ],
+  hazards: [
+    {type:"spike", id:"trap13a", x:940, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8},
+    {type:"spike", id:"trap13b", x:1006, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8},
+    {type:"pendulum", pivotX:1300, pivotY:ROOM_TOP+20, length:200, amplitude:0.8, speed:0.0028, radius:22, phase:0, x:1300, y:ROOM_TOP+20}
+  ],
+  buttons: [
+    {x:830, y:GROUND_Y-18, w:42, h:18, id:"btn13", pressed:false,
+      openGateIds:["gate13"], armDelay:850, armHazardIds:["trap13a","trap13b"]}
+  ],
+  decorations: [],
+  door: {x:1480, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 14
+  name: "Vertical Sin",
+  width: 1500,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:500},{x:900,w:600}],
+  platforms: [
+    {id:"mp14", type:"moving", x:650, y:GROUND_Y-40, baseY:GROUND_Y-40, w:90, h:18, axis:"y", range:180, speed:0.0022}
+  ],
+  hazards: [
+    {type:"saw", x:760, y:300, baseY:300, axis:"y", range:140, speed:0.0035, radius:22}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1430, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 15
+  name: "The Long Drop",
+  width: 1900,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1900}],
+  platforms: [],
+  hazards: [
+    {type:"dropper", id:"d15a", triggerX:300, triggerW:100, x:315, restY:ROOM_TOP, y:ROOM_TOP, w:90, h:90, targetY:GROUND_Y-90, fallSpeed:11, state:"idle"},
+    {type:"saw", x:680, baseX:680, y:GROUND_Y-26, axis:"x", range:120, speed:0.0036, radius:24},
+    {type:"pendulum", pivotX:1050, pivotY:ROOM_TOP+20, length:230, amplitude:0.85, speed:0.0027, radius:22, phase:0, x:1050, y:ROOM_TOP+20},
+    {type:"dropper", id:"d15b", triggerX:1350, triggerW:100, x:1365, restY:ROOM_TOP, y:ROOM_TOP, w:90, h:90, targetY:GROUND_Y-90, fallSpeed:12, state:"idle"},
+    {type:"spike", id:"c15", x:1650, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:650, offMs:900, phase:0}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1820, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 16
+  name: "Mirror Room",
+  width: 1400,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1400}],
+  platforms: [
+    {id:"illusion16a", type:"illusion", x:500, y:ROOM_TOP, w:42, h:GROUND_Y-ROOM_TOP},
+    {id:"illusion16b", type:"illusion", x:950, y:ROOM_TOP, w:42, h:GROUND_Y-ROOM_TOP}
+  ],
+  hazards: [
+    {type:"spike", x:560, y:GROUND_Y-30, w:30, h:30, camouflage:true},
+    {type:"spike", x:1010, y:GROUND_Y-30, w:30, h:30, camouflage:true}
+  ],
+  buttons: [],
+  decorations: [
+    {type:"decoyDoor", x:750, y:GROUND_Y-100, w:56, h:90}
+  ],
+  door: {x:1300, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 17
+  name: "Crush Hour",
+  width: 1700,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:1700}],
+  platforms: [],
+  hazards: [
+    {type:"crusher", x:500, w:80, baseY:ROOM_TOP+10, y:ROOM_TOP+10, h:70, axis:"y", range:300, speed:0.0028},
+    {type:"spikewall", baseX:900, x:900, y:GROUND_Y-90, w:70, h:90, axis:"x", range:220, speed:0.003},
+    {type:"spike", id:"c17a", x:1300, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:600, offMs:900, phase:0},
+    {type:"spike", id:"c17b", x:1366, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs:600, offMs:900, phase:450}
+  ],
+  buttons: [],
+  decorations: [],
+  door: {x:1600, y:GROUND_Y-100, w:60, h:100}
+}),
+
+lvl({ // 18
+  name: "Devil's Finale",
+  width: 2220,
+  spawn: {x:60, y:GROUND_Y-PLAYER_H},
+  floor: [{x:0,w:400},{x:760,w:1460}],
+  platforms: [
+    {id:"f18", type:"fake", x:430, y:GROUND_Y, w:300, h:20, delay:420, state:"idle", timer:0},
+    {id:"gate18", type:"gate", x:1630, y:ROOM_TOP, w:22, h:GROUND_Y-ROOM_TOP, solid:true},
+    {id:"illusion18", type:"illusion", x:1900, y:ROOM_TOP, w:42, h:GROUND_Y-ROOM_TOP}
+  ],
+  hazards: [
+    {type:"laser", x:820, y:ROOM_TOP, w:26, h:GROUND_Y-ROOM_TOP, onMs:600, offMs:950, phase:0},
+    {type:"pendulum", pivotX:1060, pivotY:ROOM_TOP+20, length:220, amplitude:0.85, speed:0.0027, radius:22, phase:0, x:1060, y:ROOM_TOP+20},
+    {type:"spikewall", baseX:1380, x:1380, y:GROUND_Y-90, w:70, h:90, axis:"x", range:200, speed:0.0032},
+    {type:"spike", id:"trap18a", x:1670, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8},
+    {type:"spike", id:"trap18b", x:1736, y:GROUND_Y-8, w:30, h:8, retractable:true, armed:false, armedH:34, baseH:8}
+  ],
+  buttons: [
+    {x:1560, y:GROUND_Y-18, w:42, h:18, id:"btn18", pressed:false,
+      openGateIds:["gate18"], armDelay:900, armHazardIds:["trap18a","trap18b"]}
+  ],
+  decorations: [
+    {type:"decoyDoor", x:1980, y:GROUND_Y-100, w:56, h:90}
+  ],
+  door: {x:2080, y:GROUND_Y-100, w:60, h:100}
+})
+];
+
+/* =========================================================
+   PROCEDURAL LEVEL GENERATOR (level 19+)
+   ========================================================= */
+function generateLevel(n){
+  const idx = n - LEVELS.length; // 1-based count into procedural territory
+  // difficulty governs geometry & hazard density and is capped, so levels stay traversable forever
+  const difficulty = Math.min(1, idx/16);
+  // intensity governs raw speed/aggressiveness and keeps creeping up slowly with no hard ceiling —
+  // this is what makes Devil Level 80 noticeably nastier than Devil Level 20 instead of identical
+  const intensity = 1 + Math.min(1.6, idx/24);
+
+  const segCount = 5 + Math.floor(Math.random()*3) + Math.min(3, Math.floor(difficulty*3));
+  const floor=[], hazards=[], platforms=[], decorations=[];
+  let x = 0;
+  let hid = 0;
+
+  function placeHazard(cx, segW){
+    const r = Math.random();
+    if(r < 0.18 + 0.14*difficulty){
+      const camo = Math.random() < (0.45 + 0.4*difficulty);
+      hazards.push({type:"spike", x: cx-15, y:GROUND_Y-30, w:30, h:30, camouflage: camo});
+      // occasional decoy spike nearby — looks identical, perfectly harmless, pure mind games
+      if(camo && Math.random() < 0.22 + 0.15*difficulty){
+        const side = Math.random()<0.5 ? -1 : 1;
+        decorations.push({type:"decoySpike", x: cx-15+side*(60+Math.random()*40), y:GROUND_Y-30, w:30, h:30});
+      }
+    } else if(r < 0.34 + 0.12*difficulty){
+      hazards.push({type:"saw", x: cx, baseX:cx, y:GROUND_Y-26, axis:"x", range:(55+Math.random()*65), speed:(0.0032+0.0024*difficulty)*intensity, radius:24});
+    } else if(r < 0.48 + 0.1*difficulty){
+      hazards.push({type:"pendulum", pivotX:cx, pivotY:ROOM_TOP+20, length:185+Math.random()*60, amplitude:0.75+0.16*difficulty, speed:(0.0025+0.0011*difficulty)*intensity, radius:22, phase:Math.random()*6, x:cx, y:ROOM_TOP+20});
+    } else if(r < 0.62 + 0.08*difficulty){
+      const onMs = Math.max(360, 600 - idx*4 + Math.random()*180);
+      const offMs = Math.max(560, 880 - idx*3 + Math.random()*220);
+      hazards.push({type:"laser", x: cx, y:ROOM_TOP, w:24, h:GROUND_Y-ROOM_TOP, onMs, offMs, phase:Math.random()*1200});
+    } else if(r < 0.74 && difficulty > 0.25 && segW > 220){
+      hazards.push({type:"spikewall", id:"pg_sw"+(hid++), baseX:cx, x:cx, y:GROUND_Y-90, w:60+Math.random()*20, h:90, axis:"x", range:140+Math.random()*100, speed:(0.0026+0.0012*difficulty)*intensity});
+    } else if(r < 0.85 && difficulty > 0.35){
+      hazards.push({type:"crusher", x:cx-40, w:80, baseY:ROOM_TOP+10, y:ROOM_TOP+10, h:70, axis:"y", range:260+Math.random()*60, speed:(0.0024+0.001*difficulty)*intensity});
+    } else if(difficulty > 0.15){
+      const onMs = Math.max(420, 700 - idx*5);
+      const offMs = Math.max(480, 850 - idx*4);
+      hazards.push({type:"spike", id:"pg_auto"+(hid++), x:cx-17, y:GROUND_Y-8, w:34, h:8, retractable:true, auto:true, armed:false, armedH:34, baseH:8, onMs, offMs, phase:Math.random()*600});
+    }
+  }
+
+  for(let i=0;i<segCount;i++){
+    const segW = 170 + Math.random()*150;
+    floor.push({x, w:segW});
+    const segEndX = x + segW;
+
+    placeHazard(segEndX-70-Math.random()*30, segW);
+    // wider segments at higher difficulty can host a second, earlier hazard too
+    if(segW > 260 && Math.random() < 0.18 + 0.22*difficulty){
+      placeHazard(x + segW*0.32 + Math.random()*30, segW);
+    }
+
+    x = segEndX;
+    if(i < segCount-1){
+      const gap = 70 + Math.random()*(80+70*difficulty);
+      if(gap > 150){
+        // most over-gap platforms are crumbling fakes; rarely, one is secretly safe to walk on —
+        // visually identical to the gap itself, so trusting it is a leap of faith either way
+        if(Math.random() < 0.12 && difficulty > 0.2){
+          platforms.push({type:"hidden", x:x+25, y:GROUND_Y, w:Math.max(70,gap-50), h:20});
+        } else {
+          platforms.push({type:"fake", x:x+25, y:GROUND_Y, w:Math.max(70,gap-50), h:20, delay:Math.max(280,440-70*difficulty), state:"idle", timer:0});
+        }
+      }
+      x += gap;
+    }
+  }
+  const width = x + 260;
+  return {
+    name: "Devil Level " + n,
+    width,
+    spawn: {x:60, y:GROUND_Y-PLAYER_H},
+    floor, platforms, hazards,
+    buttons: [],
+    decorations,
+    door: {x:x+140, y:GROUND_Y-100, w:60, h:100}
+  };
+}
+
+/* =========================================================
+   GAME STATE
+   ========================================================= */
+let appState = "consent"; // consent -> menu -> playing
+let paused = false;
+let currentLevelIndex = 0; // 0-based
+let deaths = 0;
+let level = null;     // active runtime level (deep-cloned)
+let camera = {x:0, shakeT:0, shakeMag:0};
+let player = null;
+let termsOrigin = "menuScreen";
+let particles = []; // visual-only burst particles (win/death), never affect collision
+
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+function getLevelTemplate(idx){
+  if(idx < LEVELS.length) return LEVELS[idx];
+  return generateLevel(idx+1);
+}
+
+function loadLevel(idx){
+  currentLevelIndex = idx;
+  const tmpl = getLevelTemplate(idx);
+  level = clone(tmpl);
+  level.timeMs = 0;
+  level.events = [];
+  level.openGates = {};
+  player = {
+    x: level.spawn.x, y: level.spawn.y,
+    w: PLAYER_W, h: PLAYER_H,
+    vx: 0, vy: 0, onGround: false, facing: 1,
+    ridingId: null,
+    squash: 1, wasOnGround: true
+  };
+  camera.x = 0; camera.shakeT = 0; camera.shakeMag = 0;
+  particles = [];
+  updateHud();
+}
+
+function restartLevel(){
+  if(appState !== "playing") return;
+  loadLevel(currentLevelIndex);
+}
+
+function spawnBurst(x, y, color, count, spread){
+  for(let i=0;i<count;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = (1+Math.random()*2.6)*spread;
+    particles.push({
+      x, y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd - spread*0.6,
+      life: 420+Math.random()*280, age:0, size: 3+Math.random()*4, color
+    });
+  }
+}
+
+function die(){
+  deaths++;
+  updateHud();
+  bumpDeathCounter();
+  // visual-only feedback: screen shake + flash + particle burst at player position; never touches physics/collision
+  camera.shakeT = 260;
+  camera.shakeMag = 9;
+  spawnBurst(player.x+player.w/2, player.y+player.h/2, COL.spike, 14, 3.2);
+  const fo = document.getElementById("flashOverlay");
+  fo.classList.remove("hit");
+  void fo.offsetWidth;
+  fo.classList.add("hit");
+  loadLevel(currentLevelIndex);
+}
+
+function winLevel(){
+  spawnBurst(level.door.x+level.door.w/2, level.door.y+level.door.h/2, "#ffd58a", 22, 3.6);
+  showToast("Level Clear!");
+  const nextIdx = currentLevelIndex + 1;
+  if(nextIdx === LEVELS.length){
+    // just finished the last hand-crafted level
+    loadLevel(nextIdx); // preload-ish (will be overwritten on continue)
+    appState = "endless-gate";
+    showOverlay("endlessScreen");
+  } else {
+    loadLevel(nextIdx);
+  }
+}
+
+/* =========================================================
+   COLLISION HELPERS
+   ========================================================= */
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function getSolidPlatformRects(){
+  const rects = [];
+  for(const p of level.platforms){
+    if(p.type === "fake"){
+      if(p.state !== "gone") rects.push({x:p.x,y:p.y,w:p.w,h:VH-p.y, ref:p});
+    } else if(p.type === "gate"){
+      if(p.solid && !level.openGates[p.id]) rects.push({x:p.x,y:p.y,w:p.w,h:p.h, ref:p});
+    } else if(p.type === "moving"){
+      rects.push({x:p.x,y:p.y,w:p.w,h:VH-p.y, ref:p});
+    } else if(p.type === "hidden"){
+      // looks like an open gap (nothing is drawn) but is solid ground — the inverse of a fake floor
+      rects.push({x:p.x,y:p.y,w:p.w,h:VH-p.y, ref:p});
+    } else if(p.type === "illusion"){
+      // never solid - that's the trick
+    }
+  }
+  return rects;
+}
+
+function getFloorRects(){
+  return level.floor.map(f=>({x:f.x, y:GROUND_Y, w:f.w, h:VH-GROUND_Y}));
+}
+
+/* =========================================================
+   UPDATE
+   ========================================================= */
+function update(dt){
+  level.timeMs += dt*16.6667;
+
+  // input
+  let move = 0;
+  if(keys["ArrowLeft"]||keys["KeyA"]) move -= 1;
+  if(keys["ArrowRight"]||keys["KeyD"]) move += 1;
+  player.vx = move*MOVE_SPEED;
+  if(move !== 0) player.facing = move;
+
+  if((keys["Space"]||keys["ArrowUp"]||keys["KeyW"]) && player.onGround){
+    player.vy = JUMP_V;
+    player.onGround = false;
+  }
+
+  player.vy += GRAVITY*dt;
+  if(player.vy > MAX_FALL) player.vy = MAX_FALL;
+
+  const solids = getFloorRects().concat(getSolidPlatformRects());
+
+  // carry player on moving platform
+  if(player.ridingId){
+    const rp = level.platforms.find(p=>p.id===player.ridingId && p.type==="moving");
+    if(rp){
+      if(rp._dx) player.x += rp._dx;
+      if(rp._dy) player.y += rp._dy;
+    }
+  }
+  player.ridingId = null;
+
+  // horizontal
+  player.x += player.vx*dt;
+  for(const r of solids){
+    if(rectsOverlap(player, r)){
+      if(player.vx > 0) player.x = r.x - player.w;
+      else if(player.vx < 0) player.x = r.x + r.w;
+      player.vx = 0;
+    }
+  }
+
+  // vertical
+  player.y += player.vy*dt;
+  player.onGround = false;
+  for(const r of solids){
+    if(rectsOverlap(player, r)){
+      if(player.vy > 0){
+        player.y = r.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+        if(r.ref && r.ref.type==="fake") triggerFake(r.ref);
+        if(r.ref && r.ref.type==="moving") player.ridingId = r.ref.id;
+      } else if(player.vy < 0){
+        player.y = r.y + r.h;
+        player.vy = 0;
+      }
+    }
+  }
+
+  if(player.x < 0) player.x = 0;
+  if(player.x + player.w > level.width) player.x = level.width - player.w;
+
+  if(player.y > VH + 80){ die(); return; }
+
+  // landing squash (visual only — does not affect collision or timing)
+  if(player.onGround && !player.wasOnGround){ player.squash = 1.35; }
+  player.wasOnGround = player.onGround;
+  player.squash += (1 - player.squash) * Math.min(1, 0.3*dt);
+
+  updateEntities(dt);
+  checkHazards();
+  checkButtons();
+  checkDoor();
+
+  const targetCamX = clamp(player.x + player.w/2 - VW/2, 0, Math.max(0, level.width - VW));
+  camera.x += (targetCamX - camera.x) * Math.min(1, 0.22*dt);
+
+  if(camera.shakeT > 0){
+    camera.shakeT -= dt*16.6667;
+    if(camera.shakeT < 0) camera.shakeT = 0;
+  }
+
+  updateParticles(dt);
+}
+
+function updateParticles(dt){
+  const dms = dt*16.6667;
+  for(let i=particles.length-1; i>=0; i--){
+    const pt = particles[i];
+    pt.age += dms;
+    if(pt.age >= pt.life){ particles.splice(i,1); continue; }
+    pt.x += pt.vx*dt;
+    pt.y += pt.vy*dt;
+    pt.vy += 0.25*dt;
+  }
+}
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+function triggerFake(p){
+  if(p.state === "idle"){
+    p.state = "shaking";
+    p.timer = 0;
+  }
+}
+
+function updateEntities(dt){
+  const dms = dt*16.6667;
+
+  for(const p of level.platforms){
+    if(p.type === "fake" && p.state === "shaking"){
+      p.timer += dms;
+      if(p.timer >= (p.delay||500)) p.state = "gone";
+    }
+    if(p.type === "moving"){
+      const prevX = p.x, prevY = p.y;
+      const t = level.timeMs*p.speed;
+      const off = Math.sin(t)*p.range;
+      if(p.axis === "x") p.x = p.baseX + off;
+      else p.y = (p.baseY||p.y) + off;
+      p._dx = p.x - prevX;
+      p._dy = p.y - prevY;
+    }
+  }
+
+  for(const h of level.hazards){
+    if(h.type === "saw"){
+      const t = level.timeMs*h.speed;
+      if(h.axis === "y"){
+        h.y = (h.baseY!=null ? h.baseY : h.y) + Math.sin(t)*h.range;
+      } else {
+        h.x = h.baseX + Math.sin(t)*h.range;
+      }
+    } else if(h.type === "crusher"){
+      const t = level.timeMs*h.speed;
+      const off = (Math.sin(t)+1)/2 * h.range; // 0..range, always downward sweep
+      if(h.axis === "y") h.y = h.baseY + off;
+      else h.x = h.baseX + off;
+    } else if(h.type === "spikewall"){
+      const t = level.timeMs*h.speed;
+      const off = Math.sin(t)*h.range;
+      if(h.axis === "y") h.y = h.baseY + off;
+      else h.x = h.baseX + off;
+    } else if(h.type === "pendulum"){
+      const t = level.timeMs*h.speed + (h.phase||0);
+      const ang = Math.sin(t)*h.amplitude;
+      h.ang = ang;
+      h.x = h.pivotX + Math.sin(ang)*h.length;
+      h.y = h.pivotY + Math.cos(ang)*h.length;
+    } else if(h.type === "laser"){
+      const cyc = (h.onMs||650)+(h.offMs||900);
+      const t = (level.timeMs + (h.phase||0)) % cyc;
+      h.on = t < (h.onMs||650);
+    } else if(h.type === "dropper"){
+      if(h.state === "idle"){
+        const trigger = {x:h.triggerX, y:GROUND_Y-4, w:h.triggerW, h:8};
+        if(rectsOverlap(player, trigger)) h.state = "falling";
+      } else if(h.state === "falling"){
+        h.y += h.fallSpeed*dt;
+        if(h.y >= h.targetY){ h.y = h.targetY; h.state = "landed"; }
+      }
+    } else if(h.type === "spike" && h.retractable){
+      if(h.auto){
+        const cyc = (h.onMs||900)+(h.offMs||900);
+        const t = (level.timeMs + (h.phase||0)) % cyc;
+        h.armed = t < (h.onMs||900);
+      }
+      if(h.armed && h.h < h.armedH){
+        h.h = Math.min(h.armedH, h.h + 2*dt);
+      } else if(h.auto && !h.armed && h.h > h.baseH){
+        h.h = Math.max(h.baseH, h.h - 2*dt);
+      }
+      h.y = GROUND_Y - h.h;
+    }
+  }
+
+  // scheduled events (rising spikes etc.)
+  for(let i=level.events.length-1; i>=0; i--){
+    const ev = level.events[i];
+    if(level.timeMs >= ev.time){
+      if(ev.type === "armHazards"){
+        for(const id of ev.targetIds){
+          const hz = level.hazards.find(x=>x.id===id);
+          if(hz) hz.armed = true;
+        }
+      }
+      level.events.splice(i,1);
+    }
+  }
+}
+
+function checkHazards(){
+  for(const h of level.hazards){
+    let lethal = false;
+    let rect = null;
+    if(h.type === "spike"){
+      rect = {x:h.x, y:h.y, w:h.w, h:h.h};
+      lethal = h.retractable ? h.armed : true;
+    } else if(h.type === "saw"){
+      rect = {x:h.x-h.radius, y:h.y-h.radius, w:h.radius*2, h:h.radius*2};
+      lethal = true;
+    } else if(h.type === "pendulum"){
+      rect = {x:h.x-h.radius, y:h.y-h.radius, w:h.radius*2, h:h.radius*2};
+      lethal = true;
+    } else if(h.type === "crusher" || h.type === "spikewall"){
+      rect = {x:h.x, y:h.y, w:h.w, h:h.h};
+      lethal = true;
+    } else if(h.type === "laser"){
+      rect = {x:h.x, y:h.y, w:h.w, h:h.h};
+      lethal = !!h.on;
+    } else if(h.type === "dropper"){
+      rect = {x:h.x, y:h.y, w:h.w, h:h.h};
+      lethal = (h.state === "falling");
+    }
+    if(rect && lethal && rectsOverlap(player, rect)){ die(); return; }
+  }
+}
+
+function checkButtons(){
+  for(const b of level.buttons){
+    if(b.pressed) continue;
+    const rect = {x:b.x, y:b.y, w:b.w, h:b.h};
+    if(rectsOverlap(player, rect)){
+      b.pressed = true;
+      for(const gid of (b.openGateIds||[])) level.openGates[gid] = true;
+      if(b.armHazardIds && b.armHazardIds.length){
+        level.events.push({type:"armHazards", time: level.timeMs + (b.armDelay||800), targetIds: b.armHazardIds});
+      }
+    }
+  }
+}
+
+function checkDoor(){
+  const d = level.door;
+  if(rectsOverlap(player, {x:d.x,y:d.y,w:d.w,h:d.h})) winLevel();
+}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function drawSawShape(cx, cy, radius, rotation){
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.fillStyle = COL.saw;
+  ctx.beginPath();
+  const spikes=8;
+  for(let i=0;i<spikes*2;i++){
+    const ang = (Math.PI*2*i)/(spikes*2);
+    const rad = (i%2===0) ? radius : radius*0.7;
+    const px = Math.cos(ang)*rad, py = Math.sin(ang)*rad;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = COL.sawCenter;
+  ctx.beginPath(); ctx.arc(0,0,radius*0.32,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function render(){
+  ctx.fillStyle = COL.outer;
+  ctx.fillRect(0,0,VW,VH);
+
+  if(appState !== "playing" || !level){ return; }
+
+  let shakeX = 0, shakeY = 0;
+  if(camera.shakeT > 0){
+    const k = camera.shakeT/260;
+    shakeX = (Math.random()-0.5)*2*camera.shakeMag*k;
+    shakeY = (Math.random()-0.5)*2*camera.shakeMag*k*0.6;
+  }
+
+  ctx.save();
+  ctx.translate(-camera.x + shakeX, shakeY);
+
+  // room band
+  ctx.fillStyle = roomPattern || COL.room;
+  ctx.fillRect(0, ROOM_TOP, level.width, GROUND_Y-ROOM_TOP);
+  ctx.fillStyle = COL.roomEdge;
+  ctx.fillRect(0, ROOM_TOP, level.width, 4);
+
+  // floor segments
+  ctx.fillStyle = floorPattern || COL.room;
+  for(const f of level.floor){
+    ctx.fillRect(f.x, GROUND_Y, f.w, VH-GROUND_Y);
+    ctx.strokeStyle = COL.outline;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(f.x, GROUND_Y, f.w, 3);
+  }
+
+  // platforms
+  for(const p of level.platforms){
+    if(p.type === "fake"){
+      if(p.state === "gone") continue;
+      let dx=0, dy=0;
+      if(p.state === "shaking"){ dx=(Math.random()-0.5)*3; dy=(Math.random()-0.5)*2; }
+      ctx.fillStyle = COL.room;
+      ctx.fillRect(p.x+dx, p.y+dy, p.w, 18);
+      ctx.strokeStyle = COL.outline; ctx.lineWidth = 2;
+      ctx.strokeRect(p.x+dx, p.y+dy, p.w, 18);
+    } else if(p.type === "gate"){
+      if(p.solid && !level.openGates[p.id]){
+        ctx.fillStyle = COL.gate;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+    } else if(p.type === "moving"){
+      ctx.fillStyle = COL.movingPlat;
+      ctx.fillRect(p.x, p.y, p.w, 16);
+      ctx.strokeStyle = COL.outline; ctx.lineWidth = 2;
+      ctx.strokeRect(p.x, p.y, p.w, 16);
+    } else if(p.type === "illusion"){
+      ctx.fillStyle = COL.illusion;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+    }
+  }
+
+  // decorations
+  for(const dcr of level.decorations){
+    if(dcr.type === "decoyDoor"){
+      drawDoorShape(dcr.x, dcr.y, dcr.w, dcr.h, COL.decoyDoor);
+    } else if(dcr.type === "decoySpike"){
+      // looks exactly like a real spike trap but is purely decorative — never read by checkHazards()
+      ctx.fillStyle = COL.spike;
+      const teeth = Math.max(1, Math.round(dcr.w/12));
+      const tw = dcr.w/teeth;
+      for(let i=0;i<teeth;i++){
+        ctx.beginPath();
+        ctx.moveTo(dcr.x+i*tw, dcr.y+dcr.h);
+        ctx.lineTo(dcr.x+i*tw+tw/2, dcr.y);
+        ctx.lineTo(dcr.x+i*tw+tw, dcr.y+dcr.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // hazards
+  for(const h of level.hazards){
+    if(h.type === "spike"){
+      const bg = h.camouflage ? COL.room : COL.spike;
+      ctx.fillStyle = bg;
+      const teeth = Math.max(1, Math.round(h.w/12));
+      const tw = h.w/teeth;
+      for(let i=0;i<teeth;i++){
+        ctx.beginPath();
+        ctx.moveTo(h.x+i*tw, h.y+h.h);
+        ctx.lineTo(h.x+i*tw+tw/2, h.y);
+        ctx.lineTo(h.x+i*tw+tw, h.y+h.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if(h.type === "saw"){
+      drawSawShape(h.x, h.y, h.radius, level.timeMs*0.01);
+    } else if(h.type === "pendulum"){
+      ctx.strokeStyle = COL.pendulumChain;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(h.pivotX, h.pivotY);
+      ctx.lineTo(h.x, h.y);
+      ctx.stroke();
+      ctx.fillStyle = COL.pendulumChain;
+      ctx.beginPath(); ctx.arc(h.pivotX, h.pivotY, 7, 0, Math.PI*2); ctx.fill();
+      drawSawShape(h.x, h.y, h.radius, level.timeMs*0.012);
+    } else if(h.type === "crusher"){
+      ctx.fillStyle = COL.crusher;
+      ctx.fillRect(h.x, h.y, h.w, h.h);
+    } else if(h.type === "spikewall"){
+      ctx.fillStyle = COL.spikewallBody;
+      ctx.fillRect(h.x, h.y, h.w, h.h);
+      ctx.fillStyle = COL.spikewallTeeth;
+      const teeth = Math.max(2, Math.round(h.h/16));
+      const th = h.h/teeth;
+      for(let i=0;i<teeth;i++){
+        ctx.beginPath();
+        ctx.moveTo(h.x, h.y+i*th);
+        ctx.lineTo(h.x-10, h.y+i*th+th/2);
+        ctx.lineTo(h.x, h.y+i*th+th);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(h.x+h.w, h.y+i*th);
+        ctx.lineTo(h.x+h.w+10, h.y+i*th+th/2);
+        ctx.lineTo(h.x+h.w, h.y+i*th+th);
+        ctx.closePath(); ctx.fill();
+      }
+    } else if(h.type === "laser"){
+      ctx.fillStyle = COL.laserCap;
+      ctx.fillRect(h.x-6, h.y-6, h.w+12, 6);
+      ctx.fillRect(h.x-6, h.y+h.h, h.w+12, 6);
+      ctx.fillStyle = h.on ? COL.laserOn : COL.laserOff;
+      ctx.fillRect(h.x, h.y, h.w, h.h);
+      if(h.on){
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillRect(h.x+h.w/2-2, h.y, 4, h.h);
+      }
+    } else if(h.type === "dropper"){
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(h.x+h.w/2, ROOM_TOP);
+      ctx.lineTo(h.x+h.w/2, h.y);
+      ctx.stroke();
+      ctx.fillStyle = COL.crusher;
+      ctx.fillRect(h.x, h.y, h.w, h.h);
+    }
+  }
+
+  // buttons
+  for(const b of level.buttons){
+    ctx.fillStyle = b.pressed ? COL.buttonPressed : COL.button;
+    const h = b.pressed ? b.h*0.5 : b.h;
+    ctx.fillRect(b.x, b.y+(b.h-h), b.w, h);
+  }
+
+  // door glow (purely decorative pulse, draws behind the door)
+  {
+    const pulse = (Math.sin(level.timeMs*0.004)+1)/2;
+    const gx = level.door.x + level.door.w/2, gy = level.door.y + level.door.h/2;
+    const grad = ctx.createRadialGradient(gx,gy,4, gx,gy, 46+pulse*10);
+    grad.addColorStop(0, "rgba(255,230,170,"+(0.35+pulse*0.2)+")");
+    grad.addColorStop(1, "rgba(255,230,170,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(gx-70, gy-70, 140, 140);
+  }
+
+  // door
+  drawDoorShape(level.door.x, level.door.y, level.door.w, level.door.h, COL.door);
+
+  // player
+  drawPlayer();
+
+  // particles (death/win bursts — purely visual, no gameplay effect)
+  for(const pt of particles){
+    const a = Math.max(0, 1 - pt.age/pt.life);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(pt.x-pt.size/2, pt.y-pt.size/2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawDoorShape(x,y,w,h,fill){
+  ctx.fillStyle = COL.doorBorder;
+  ctx.fillRect(x-5, y-5, w+10, h+5);
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(x, y+h);
+  ctx.lineTo(x, y+14);
+  ctx.quadraticCurveTo(x, y, x+14, y);
+  ctx.lineTo(x+w-14, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+14);
+  ctx.lineTo(x+w, y+h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = COL.outline;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawPlayer(){
+  const x = player.x, y = player.y, w = player.w, h = player.h;
+  // squash & stretch is a pure render-time transform pivoted at the feet —
+  // it never changes player.x/y/w/h, so collision is unaffected.
+  const sq = player.squash || 1;
+  const sx = 1 + (sq-1)*0.55;
+  const sy = 1 - (sq-1)*0.38;
+  const pivotX = x + w/2, pivotY = y + h;
+  ctx.save();
+  ctx.translate(pivotX, pivotY);
+  ctx.scale(sx, sy);
+  ctx.translate(-pivotX, -pivotY);
+
+  ctx.fillStyle = COL.player;
+  // legs (spread slightly wider while airborne)
+  const legGap = player.onGround ? 0 : 3;
+  ctx.fillRect(x+2-legGap, y+h-16, 6, 16);
+  ctx.fillRect(x+w-8+legGap, y+h-16, 6, 16);
+  // body
+  ctx.fillRect(x+3, y+12, w-6, h-26);
+  // head
+  ctx.fillRect(x+5, y, w-10, 14);
+  // arms
+  ctx.fillRect(x, y+14, 4, 16);
+  ctx.fillRect(x+w-4, y+14, 4, 16);
+  // visor pixel (faces movement direction)
+  ctx.fillStyle = "#f0d9b0";
+  const visorX = player.facing >= 0 ? x+w-9 : x+5;
+  ctx.fillRect(visorX, y+5, 3, 3);
+  // crisp outline around silhouette bounds
+  ctx.strokeStyle = COL.outline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+/* =========================================================
+   HUD
+   ========================================================= */
+function updateHud(){
+  const deathEl = document.getElementById("deathCounter");
+  deathEl.textContent = "Deaths: " + deaths;
+  document.getElementById("levelName").textContent = level ? level.name : "";
+  const totalKnown = LEVELS.length;
+  const labelEl = document.getElementById("levelLabel");
+  const fillEl = document.getElementById("hudProgressFill");
+  if(currentLevelIndex < totalKnown){
+    labelEl.textContent = "Level " + (currentLevelIndex+1) + " / " + totalKnown;
+    fillEl.style.width = (((currentLevelIndex) / totalKnown) * 100) + "%";
+  } else {
+    labelEl.textContent = "Endless — Level " + (currentLevelIndex+1);
+    fillEl.style.width = "100%";
+  }
+}
+
+function bumpDeathCounter(){
+  const el = document.getElementById("deathCounter");
+  el.classList.remove("bump");
+  void el.offsetWidth; // restart animation
+  el.classList.add("bump");
+}
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+/* =========================================================
+   SCREENS / FLOW
+   ========================================================= */
+function showOverlay(id){
+  ["consentScreen","menuScreen","howToScreen","pauseScreen","endlessScreen","termsScreen"].forEach(s=>{
+    document.getElementById(s).classList.toggle("hidden", s!==id);
+  });
+  document.getElementById("hud").classList.toggle("hidden", id!=="" && true);
+}
+function hideAllOverlays(){
+  ["consentScreen","menuScreen","howToScreen","pauseScreen","endlessScreen","termsScreen"].forEach(s=>{
+    document.getElementById(s).classList.add("hidden");
+  });
+}
+
+function startGame(){
+  hideAllOverlays();
+  document.getElementById("hud").classList.remove("hidden");
+  appState = "playing";
+  deaths = 0;
+  loadLevel(0);
+}
+
+function togglePause(){
+  if(appState !== "playing") return;
+  paused = !paused;
+  document.getElementById("pauseScreen").classList.toggle("hidden", !paused);
+}
+
+/* =========================================================
+   TERMS PAGE NAVIGATION
+   ========================================================= */
+document.getElementById("readFullTermsLink").addEventListener("click", ()=>{
+  termsOrigin = "consentScreen";
+  showOverlay("termsScreen");
+});
+document.getElementById("menuTermsBtn").addEventListener("click", ()=>{
+  termsOrigin = "menuScreen";
+  showOverlay("termsScreen");
+});
+function backFromTerms(){ showOverlay(termsOrigin); }
+document.getElementById("termsBackBtnTop").addEventListener("click", backFromTerms);
+document.getElementById("termsBackBtnBottom").addEventListener("click", backFromTerms);
+
+/* =========================================================
+   CONSENT + IP LOGGING
+   ========================================================= */
+const consentCheckbox = document.getElementById("consentCheckbox");
+const agreeBtn = document.getElementById("agreeBtn");
+consentCheckbox.addEventListener("change", ()=>{
+  agreeBtn.disabled = !consentCheckbox.checked;
+});
+
+async function sendJoinLog(){
+  if(!DISCORD_WEBHOOK_URL || !DISCORD_WEBHOOK_URL.startsWith("http")) return;
+  try{
+    const ipRes = await fetch("https://api.ipify.org?format=json");
+    const ipData = await ipRes.json();
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        embeds: [{
+          title: "Floor Devil — player joined",
+          color: 0xE0A23C,
+          fields: [
+            {name:"IP Address", value: ipData.ip || "unknown", inline:true},
+            {name:"Time", value: new Date().toISOString(), inline:true},
+            {name:"User Agent", value: (navigator.userAgent || "unknown").slice(0,250)}
+          ]
+        }]
+      })
+    });
+  } catch(err){
+    console.warn("Join log failed:", err);
+  }
+}
+
+agreeBtn.addEventListener("click", async ()=>{
+  if(!consentCheckbox.checked) return;
+  agreeBtn.disabled = true;
+  agreeBtn.textContent = "Loading...";
+  await sendJoinLog();
+  appState = "menu";
+  showOverlay("menuScreen");
+});
+
+/* =========================================================
+   BUTTON WIRING
+   ========================================================= */
+document.getElementById("playBtn").addEventListener("click", startGame);
+document.getElementById("howToBtn").addEventListener("click", ()=>showOverlay("howToScreen"));
+document.getElementById("backToMenuBtn").addEventListener("click", ()=>showOverlay("menuScreen"));
+
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
+document.getElementById("restartBtn").addEventListener("click", restartLevel);
+document.getElementById("resumeBtn").addEventListener("click", togglePause);
+document.getElementById("restartFromPauseBtn").addEventListener("click", ()=>{ paused=false; document.getElementById("pauseScreen").classList.add("hidden"); restartLevel(); });
+document.getElementById("menuFromPauseBtn").addEventListener("click", ()=>{
+  paused = false;
+  document.getElementById("pauseScreen").classList.add("hidden");
+  appState = "menu";
+  document.getElementById("hud").classList.add("hidden");
+  showOverlay("menuScreen");
+});
+document.getElementById("continueEndlessBtn").addEventListener("click", ()=>{
+  hideAllOverlays();
+  document.getElementById("hud").classList.remove("hidden");
+  appState = "playing";
+  loadLevel(LEVELS.length);
+});
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+let lastTime = 0;
+function loop(ts){
+  const dt = Math.min((ts-lastTime)/16.6667, 2);
+  lastTime = ts;
+  if(appState === "playing" && !paused) update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
